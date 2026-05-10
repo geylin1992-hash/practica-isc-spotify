@@ -161,6 +161,15 @@ plt.rcParams.update({
 })
 sns.set_palette("Set2")
 
+# Paleta fija: cada artista siempre tiene el mismo color
+ARTIST_COLORS = {
+    "Justin Bieber": "#1f77b4",  # azul
+    "Taylor Swift": "#ff7f0e",   # naranja
+    "Katy Perry": "#e377c2",     # rosa
+    "Adele": "#2ca02c",          # verde (por si añaden otro)
+    "Ed Sheeran": "#d62728",     # rojo
+}
+
 
 st.title("🎵 LyricBox")
 st.caption("Filtra discografías y explora letras de tus artistas favoritos")
@@ -271,11 +280,9 @@ def metrics(text):
     return len(words), len(set(words)), (len(set(words)) / len(words)) if words else 0.0
 
 
-@st.cache_data(show_spinner=False)
-def fetch_artist_discography(artist_name, cache_key=0):
+def fetch_artist_discography(artist_name):
     """Apartado 1: descarga discografía y aplica los filtros.
-    Hace varias búsquedas automáticas para cubrir discografías largas.
-    El parámetro cache_key permite invalidar caché manualmente."""
+    Hace varias búsquedas automáticas para cubrir discografías largas."""
     raw = fetch_suggest(artist_name)
 
     # Búsquedas automáticas: probamos varios términos para forzar a Deezer
@@ -375,22 +382,9 @@ if "Discografía" in SECTION:
     if "selected_album" not in st.session_state:
         st.session_state.selected_album = None
 
-    if "cache_key" not in st.session_state:
-        st.session_state.cache_key = 0
-
-    col_btn1, col_btn2 = st.columns([1, 5])
-    with col_btn1:
-        search_clicked = st.button("🔍 Buscar", type="primary", use_container_width=True)
-    with col_btn2:
-        refresh_clicked = st.button("🔄 Refrescar resultados", use_container_width=True)
-
-    if refresh_clicked:
-        st.session_state.cache_key += 1
-        search_clicked = True
-
-    if search_clicked:
+    if st.button("🔍 Buscar", type="primary"):
         with st.spinner(f"Consultando lyrics.ovh para {artist}..."):
-            tracks_raw, tracks = fetch_artist_discography(artist, st.session_state.cache_key)
+            tracks_raw, tracks = fetch_artist_discography(artist)
         st.session_state.tracks_raw = tracks_raw
         st.session_state.tracks = tracks
         st.session_state.search_artist = artist
@@ -594,23 +588,39 @@ else:
         ])
 
         with tab1:
+            artists_in_plot = plot_df["artist"].unique()
+            palette = {a: ARTIST_COLORS.get(a, "#888888") for a in artists_in_plot}
             fig, ax = plt.subplots(figsize=(9, 5))
-            sns.boxplot(data=plot_df, x="artist", y="lexical_richness", ax=ax)
-            sns.stripplot(data=plot_df, x="artist", y="lexical_richness", ax=ax, color="white", alpha=0.5, size=4)
+            sns.boxplot(data=plot_df, x="artist", y="lexical_richness", ax=ax,
+                        hue="artist", palette=palette, legend=False)
+            sns.stripplot(data=plot_df, x="artist", y="lexical_richness", ax=ax,
+                          color="white", alpha=0.6, size=5, edgecolor="black", linewidth=0.5)
             ax.set_ylabel("Riqueza léxica (únicas / totales)")
             ax.set_xlabel("")
             ax.set_title("Riqueza léxica por artista")
             st.pyplot(fig)
+            st.caption("Cada punto blanco es una canción. La caja muestra el rango del 50% central de las canciones; la línea dentro de la caja es la mediana. Más alto = más vocabulario distinto.")
 
         with tab2:
+            artists_in_plot = plot_df["artist"].unique()
+            palette = {a: ARTIST_COLORS.get(a, "#888888") for a in artists_in_plot}
             fig, ax = plt.subplots(figsize=(9, 5))
-            sns.boxplot(data=plot_df, x="artist", y="sentiment", ax=ax)
-            sns.stripplot(data=plot_df, x="artist", y="sentiment", ax=ax, color="white", alpha=0.5, size=4)
+            sns.boxplot(data=plot_df, x="artist", y="sentiment", ax=ax,
+                        hue="artist", palette=palette, legend=False)
+            sns.stripplot(data=plot_df, x="artist", y="sentiment", ax=ax,
+                          color="white", alpha=0.6, size=5, edgecolor="black", linewidth=0.5)
             ax.axhline(0, color="white", lw=0.7, ls="--", alpha=0.5)
-            ax.set_ylabel("Polaridad (-1 negativo, +1 positivo)")
+            # Anotaciones de positivo/negativo
+            ax.text(1.01, 0.95, "↑ Más positivo", transform=ax.transAxes,
+                    color="#5cb85c", fontsize=10, va="top")
+            ax.text(1.01, 0.05, "↓ Más negativo", transform=ax.transAxes,
+                    color="#d9534f", fontsize=10, va="bottom")
+            ax.set_ylabel("Polaridad")
             ax.set_xlabel("")
             ax.set_title("Sentimiento por artista")
+            plt.tight_layout()
             st.pyplot(fig)
+            st.caption("Cada punto blanco es una canción. Por encima de la línea = letra más positiva; por debajo = más negativa. Calculado con TextBlob.")
 
         with tab3:
             artists = list(artists_tracks.keys())
@@ -626,14 +636,17 @@ else:
                         if w not in STOPWORDS and len(w) > 2
                     ]
                 top = Counter(words).most_common(10)
+                color = ARTIST_COLORS.get(art, "#888888")
                 if top:
                     ws, cs = zip(*top)
-                    sns.barplot(x=list(cs), y=list(ws), ax=ax, palette="Set2")
-                ax.set_title(art)
+                    ax.barh(list(ws), list(cs), color=color, alpha=0.9)
+                    ax.invert_yaxis()
+                ax.set_title(art, color="white")
                 ax.set_xlabel("Frecuencia")
                 ax.set_ylabel("")
             plt.tight_layout()
             st.pyplot(fig)
+            st.caption("Las 10 palabras más frecuentes en las letras de cada artista (sin contar stopwords como the, you, and...).")
 
         with tab4:
             artists = list(artists_tracks.keys())
@@ -661,18 +674,26 @@ else:
             st.pyplot(fig)
 
         with tab5:
+            scatter_data = plot_df.dropna(subset=["sentiment"])
+            artists_in_plot = scatter_data["artist"].unique()
+            palette = {a: ARTIST_COLORS.get(a, "#888888") for a in artists_in_plot}
             fig, ax = plt.subplots(figsize=(10, 7))
             sns.scatterplot(
-                data=plot_df.dropna(subset=["sentiment"]),
+                data=scatter_data,
                 x="sentiment", y="lexical_richness",
-                hue="artist", palette="Set2",
-                s=80, alpha=0.85, ax=ax,
+                hue="artist", palette=palette,
+                s=120, alpha=0.85, ax=ax, edgecolor="white", linewidth=0.5,
             )
             ax.axvline(0, color="white", lw=0.7, ls="--", alpha=0.5)
-            ax.set_xlabel("Sentimiento (TextBlob)")
+            ax.text(0.02, 0.98, "← negativo  |  positivo →", transform=ax.transAxes,
+                    color="white", fontsize=10, va="top", alpha=0.7)
+            ax.set_xlabel("Sentimiento (-1 a +1)")
             ax.set_ylabel("Riqueza léxica")
-            ax.set_title("Huella lírica: cada punto una canción, color por artista")
+            ax.set_title("Huella lírica: cada punto es una canción")
+            ax.legend(title="Artista", loc="best")
+            plt.tight_layout()
             st.pyplot(fig)
+            st.caption("Cada punto es una canción posicionada según su sentimiento (eje X) y su riqueza léxica (eje Y). Permite ver si los artistas ocupan zonas distintas del 'mapa' lírico.")
 
 
 st.markdown("---")
