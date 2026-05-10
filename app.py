@@ -350,7 +350,7 @@ with st.sidebar:
     st.markdown("### 🎧 Navegación")
     SECTION = st.radio(
         "",
-        ["📀 Apartado 1: Filtrado", "📊 Apartado 2: Comparativa"],
+        ["📀 Discografía", "📊 Compara artistas"],
         label_visibility="collapsed",
     )
     st.markdown("---")
@@ -365,10 +365,9 @@ with st.sidebar:
 # ===========================================================================
 # APARTADO 1
 # ===========================================================================
-if "Apartado 1" in SECTION:
+if "Discografía" in SECTION:
 
-    st.header("📀 Discografía y letras")
-    artist = st.text_input("Artista", value="Justin Bieber")
+    artist = st.text_input("¿Qué artista quieres explorar?", value="Justin Bieber")
 
     # Estado de sesión: artista buscado y álbum seleccionado
     if "search_done" not in st.session_state:
@@ -518,11 +517,7 @@ if "Apartado 1" in SECTION:
 # ===========================================================================
 else:
 
-    st.header("📊 Apartado 2: comparativa lírica entre artistas")
-    st.markdown(
-        "Para cada artista se descargan las letras de un sample de canciones "
-        "populares y se calculan métricas léxicas y de sentimiento."
-    )
+    st.markdown("Compara el estilo lírico de varios artistas: qué palabras dominan, qué tan rico es su vocabulario y qué tan positivas/negativas son sus letras.")
 
     DEFAULT_TRACKS = {
         "Justin Bieber": "Baby, Sorry, Love Yourself, What Do You Mean, Yummy, Holy, Peaches, Stay, Boyfriend, Beauty And A Beat, As Long As You Love Me, All Around The World, Mistletoe, Where Are U Now, Company, Cold Water, Let Me Love You, Friends, 10000 Hours, Intentions",
@@ -530,7 +525,7 @@ else:
         "Katy Perry": "I Kissed A Girl, Hot N Cold, California Gurls, Teenage Dream, Firework, E.T., Last Friday Night, Part Of Me, Wide Awake, Roar, Dark Horse, Birthday, This Is How We Do, Chained To The Rhythm, Bon Appetit, Swish Swish, Never Really Over, Daisies, Smile, Harleys In Hawaii",
     }
 
-    st.subheader("🎤 Artistas y canciones")
+    st.subheader("🎤 Elige tus artistas")
     artists_tracks = {}
     for default_artist, default_songs in DEFAULT_TRACKS.items():
         col1, col2 = st.columns([1, 4])
@@ -573,7 +568,7 @@ else:
 
         from textblob import TextBlob
         df["sentiment"] = df["lyrics"].apply(
-            lambda t: TextBlob(t).sentiment.polarity if t else None
+            lambda t: TextBlob(str(t)).sentiment.polarity if isinstance(t, str) and t else None
         )
 
         found = df["lyrics"].notna().sum()
