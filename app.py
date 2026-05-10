@@ -129,6 +129,21 @@ st.markdown("""
         color: #aaaaaa;
         font-size: 12px;
     }
+    /* Ocultar iconos de Streamlit Cloud (GitHub, edit) y menú principal */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    [data-testid="stHeader"] [data-testid="stMainMenu"] {
+        display: none !important;
+    }
+    /* Ocultar el icono de GitHub específicamente si aparece como link */
+    a[href*="github.com"][title*="View source"] {
+        display: none !important;
+    }
+    /* Ocultar el footer "Made with Streamlit" */
+    footer {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
