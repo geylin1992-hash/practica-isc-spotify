@@ -297,6 +297,14 @@ def fetch_artist_discography(artist_name, cache_key=0):
         for d in raw
     ]).drop_duplicates(subset=["track", "album"]).reset_index(drop=True)
 
+    # Filtro adicional: descartar álbumes donde el artista solo aparece como
+    # colaborador puntual. Para cada álbum, contamos cuántas pistas del DataFrame
+    # provienen de él. Si solo tiene 1-2 pistas, probablemente es una colaboración
+    # esporádica de otro artista (caso "Home for Christmas" con Bieber como invitado).
+    album_track_counts_raw = tracks_raw["album"].value_counts()
+    main_albums = album_track_counts_raw[album_track_counts_raw >= 3].index
+    tracks_raw = tracks_raw[tracks_raw["album"].isin(main_albums)].reset_index(drop=True)
+
     # Filtro
     tracks = tracks_raw.copy()
     tracks = tracks[tracks.apply(lambda r: is_studio(r["album"], r["album_type"]), axis=1)]
