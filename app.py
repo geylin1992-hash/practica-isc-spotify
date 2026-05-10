@@ -177,6 +177,7 @@ NON_STUDIO_KEYWORDS = [
     "soundtrack", "ost", "b-sides", "demos", "sessions",
     "singles", "complete", "rarities",
     "my worlds", "never say never", "journals",
+    "home for christmas",  # EP/compilation navideño 2020 (Wikipedia no lo lista como álbum de estudio)
 ]
 
 MIN_TRACKS_PER_ALBUM = 4
