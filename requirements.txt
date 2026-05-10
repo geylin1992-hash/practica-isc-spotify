@@ -1,0 +1,7 @@
+streamlit>=1.32
+requests>=2.31
+pandas>=2.0
+matplotlib>=3.7
+seaborn>=0.13
+wordcloud>=1.9
+textblob>=0.17
