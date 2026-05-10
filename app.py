@@ -147,11 +147,8 @@ plt.rcParams.update({
 sns.set_palette("Set2")
 
 
-st.title("🎵 Análisis de Discografía y Letras")
-st.caption(
-    "Práctica ISC | Filtrado automático de álbumes de estudio + análisis comparativo "
-    "de letras (lyrics.ovh)"
-)
+st.title("🎵 LyricBox")
+st.caption("Filtra discografías y explora letras de tus artistas favoritos")
 
 
 # ---------------------------------------------------------------------------
@@ -259,27 +256,23 @@ def metrics(text):
 
 
 @st.cache_data(show_spinner=False)
-def fetch_artist_discography(artist_name):
-    """Apartado 1: descarga discografía completa y aplica los filtros.
-    Realiza múltiples búsquedas automáticas (por artista solo y por artista+año)
-    para mejorar la cobertura de discografías largas en Deezer."""
+def fetch_artist_discography(artist_name, cache_key=0):
+    """Apartado 1: descarga discografía y aplica los filtros.
+    Hace varias búsquedas automáticas para cubrir discografías largas.
+    El parámetro cache_key permite invalidar caché manualmente."""
     raw = fetch_suggest(artist_name)
 
-    # Búsquedas automáticas extra: artista + cada año desde 2000.
-    # Deezer devuelve solo ~25 resultados por búsqueda; usar varios años fuerza
-    # a Deezer a devolver canciones de épocas distintas y cubrir toda la carrera.
-    auto_queries = [
-        f"{artist_name} {year}" for year in range(2000, 2027)
-    ] + [
-        f"{artist_name} album",
-        f"{artist_name} hits",
-        f"{artist_name} love",
-        f"{artist_name} song",
+    # Búsquedas automáticas: probamos varios términos para forzar a Deezer
+    # a devolver canciones de épocas y álbumes distintos (cada query trae ~25).
+    # Usamos términos comunes en pop en lugar de años, que dan mejor cobertura.
+    common_terms = [
+        "love", "you", "baby", "night", "good", "feel", "heart",
+        "dance", "girl", "boy", "world", "time", "home",
+        "album", "live", "tonight",
     ]
-
-    for q in auto_queries:
-        raw += fetch_suggest(q)
-        time.sleep(0.1)
+    for term in common_terms:
+        raw += fetch_suggest(f"{artist_name} {term}")
+        time.sleep(0.15)
 
     raw = [d for d in raw if d.get("artist", {}).get("name", "").lower() == artist_name.lower()]
 
@@ -343,17 +336,8 @@ with st.sidebar:
 # ===========================================================================
 if "Apartado 1" in SECTION:
 
-    st.header("📀 Apartado 1: filtrado de álbumes de estudio")
-    st.markdown(
-        "Para un artista dado, lyrics.ovh/Deezer devuelve numerosos lanzamientos: "
-        "álbumes de estudio, ediciones deluxe, recopilatorios, álbumes en directo, "
-        "remixes, etc. Esta aplicación aplica un filtro combinado (tipo de álbum + "
-        "lista negra de palabras + umbral mínimo de pistas + deduplicación) para "
-        "mostrar únicamente los álbumes de estudio. Al pulsar una portada se "
-        "muestran las canciones del álbum y se puede consultar su letra completa."
-    )
-
-    artist = st.text_input("Escribe el nombre del artista", value="Justin Bieber")
+    st.header("📀 Discografía y letras")
+    artist = st.text_input("Artista", value="Justin Bieber")
 
     # Estado de sesión: artista buscado y álbum seleccionado
     if "search_done" not in st.session_state:
@@ -361,9 +345,22 @@ if "Apartado 1" in SECTION:
     if "selected_album" not in st.session_state:
         st.session_state.selected_album = None
 
-    if st.button("🔍 Buscar discografía", type="primary"):
+    if "cache_key" not in st.session_state:
+        st.session_state.cache_key = 0
+
+    col_btn1, col_btn2 = st.columns([1, 5])
+    with col_btn1:
+        search_clicked = st.button("🔍 Buscar", type="primary", use_container_width=True)
+    with col_btn2:
+        refresh_clicked = st.button("🔄 Refrescar resultados", use_container_width=True)
+
+    if refresh_clicked:
+        st.session_state.cache_key += 1
+        search_clicked = True
+
+    if search_clicked:
         with st.spinner(f"Consultando lyrics.ovh para {artist}..."):
-            tracks_raw, tracks = fetch_artist_discography(artist)
+            tracks_raw, tracks = fetch_artist_discography(artist, st.session_state.cache_key)
         st.session_state.tracks_raw = tracks_raw
         st.session_state.tracks = tracks
         st.session_state.search_artist = artist
