@@ -259,12 +259,27 @@ def metrics(text):
 
 
 @st.cache_data(show_spinner=False)
-def fetch_artist_discography(artist_name, extra_queries):
-    """Apartado 1: descarga toda la discografía y aplica los filtros."""
+def fetch_artist_discography(artist_name):
+    """Apartado 1: descarga discografía completa y aplica los filtros.
+    Realiza múltiples búsquedas automáticas (por artista solo y por artista+año)
+    para mejorar la cobertura de discografías largas en Deezer."""
     raw = fetch_suggest(artist_name)
-    for q in extra_queries:
+
+    # Búsquedas automáticas extra: artista + cada año desde 2000.
+    # Deezer devuelve solo ~25 resultados por búsqueda; usar varios años fuerza
+    # a Deezer a devolver canciones de épocas distintas y cubrir toda la carrera.
+    auto_queries = [
+        f"{artist_name} {year}" for year in range(2000, 2027)
+    ] + [
+        f"{artist_name} album",
+        f"{artist_name} hits",
+        f"{artist_name} love",
+        f"{artist_name} song",
+    ]
+
+    for q in auto_queries:
         raw += fetch_suggest(q)
-        time.sleep(0.2)
+        time.sleep(0.1)
 
     raw = [d for d in raw if d.get("artist", {}).get("name", "").lower() == artist_name.lower()]
 
@@ -338,19 +353,7 @@ if "Apartado 1" in SECTION:
         "muestran las canciones del álbum y se puede consultar su letra completa."
     )
 
-    col_a, col_b = st.columns([2, 3])
-    with col_a:
-        artist = st.text_input("Artista", value="Justin Bieber")
-    with col_b:
-        extra_input = st.text_area(
-            "Búsquedas adicionales (una por línea, opcional)",
-            value="My World 2.0 Justin Bieber\nUnder the Mistletoe Justin Bieber\n"
-                  "Believe Justin Bieber\nPurpose Justin Bieber\nChanges Justin Bieber\n"
-                  "Justice Justin Bieber\nSwag Justin Bieber",
-            height=100,
-        )
-
-    extra_queries = [q.strip() for q in extra_input.split("\n") if q.strip()]
+    artist = st.text_input("Escribe el nombre del artista", value="Justin Bieber")
 
     # Estado de sesión: artista buscado y álbum seleccionado
     if "search_done" not in st.session_state:
@@ -360,7 +363,7 @@ if "Apartado 1" in SECTION:
 
     if st.button("🔍 Buscar discografía", type="primary"):
         with st.spinner(f"Consultando lyrics.ovh para {artist}..."):
-            tracks_raw, tracks = fetch_artist_discography(artist, extra_queries)
+            tracks_raw, tracks = fetch_artist_discography(artist)
         st.session_state.tracks_raw = tracks_raw
         st.session_state.tracks = tracks
         st.session_state.search_artist = artist
@@ -462,8 +465,14 @@ if "Apartado 1" in SECTION:
 
             # Tablas comparativas al final
             st.markdown("---")
-            with st.expander("Ver tablas brutas (antes / después del filtro)"):
-                t1, t2 = st.tabs(["Antes del filtro", "Después del filtro"])
+            with st.expander("📊 Ver demostración del filtro (cómo se descartan los lanzamientos no-estudio)"):
+                st.caption(
+                    "Estas tablas demuestran qué hace el filtro: la primera muestra "
+                    "todos los lanzamientos brutos que devuelve Deezer (deluxe, remixes, "
+                    "recopilatorios, EPs, en directo...), y la segunda muestra el resultado "
+                    "limpio tras aplicar los criterios."
+                )
+                t1, t2 = st.tabs(["Lanzamientos brutos", "Solo álbumes de estudio"])
                 with t1:
                     st.dataframe(
                         tracks_raw["album"].value_counts().rename_axis("álbum").reset_index(name="pistas"),
