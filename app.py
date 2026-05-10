@@ -265,14 +265,21 @@ def fetch_artist_discography(artist_name, cache_key=0):
     # Búsquedas automáticas: probamos varios términos para forzar a Deezer
     # a devolver canciones de épocas y álbumes distintos (cada query trae ~25).
     # Usamos términos comunes en pop en lugar de años, que dan mejor cobertura.
+    # Términos genéricos en pop + temáticos (cubren la mayoría de discografías).
+    # Se incluyen palabras de estaciones/temas que ayudan con álbumes específicos
+    # como navideños, baladas, etc.
     common_terms = [
         "love", "you", "baby", "night", "good", "feel", "heart",
         "dance", "girl", "boy", "world", "time", "home",
-        "album", "live", "tonight",
+        "album", "live", "tonight", "want", "need", "stay",
+        "christmas", "mistletoe", "snow", "winter",  # álbumes navideños
+        "yummy", "intentions", "anyone", "peaches",  # singles famosos Bieber
+        "shake", "blank", "look", "cardigan",        # Taylor Swift
+        "firework", "roar", "smile", "daisies",      # Katy Perry
     ]
     for term in common_terms:
         raw += fetch_suggest(f"{artist_name} {term}")
-        time.sleep(0.15)
+        time.sleep(0.1)
 
     raw = [d for d in raw if d.get("artist", {}).get("name", "").lower() == artist_name.lower()]
 
