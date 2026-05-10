@@ -334,7 +334,8 @@ if "Apartado 1" in SECTION:
         "álbumes de estudio, ediciones deluxe, recopilatorios, álbumes en directo, "
         "remixes, etc. Esta aplicación aplica un filtro combinado (tipo de álbum + "
         "lista negra de palabras + umbral mínimo de pistas + deduplicación) para "
-        "mostrar únicamente los álbumes de estudio."
+        "mostrar únicamente los álbumes de estudio. Al pulsar una portada se "
+        "muestran las canciones del álbum y se puede consultar su letra completa."
     )
 
     col_a, col_b = st.columns([2, 3])
@@ -351,9 +352,26 @@ if "Apartado 1" in SECTION:
 
     extra_queries = [q.strip() for q in extra_input.split("\n") if q.strip()]
 
+    # Estado de sesión: artista buscado y álbum seleccionado
+    if "search_done" not in st.session_state:
+        st.session_state.search_done = False
+    if "selected_album" not in st.session_state:
+        st.session_state.selected_album = None
+
     if st.button("🔍 Buscar discografía", type="primary"):
         with st.spinner(f"Consultando lyrics.ovh para {artist}..."):
             tracks_raw, tracks = fetch_artist_discography(artist, extra_queries)
+        st.session_state.tracks_raw = tracks_raw
+        st.session_state.tracks = tracks
+        st.session_state.search_artist = artist
+        st.session_state.search_done = True
+        st.session_state.selected_album = None  # reset al buscar de nuevo
+
+    # Mostrar resultados si ya se ha buscado
+    if st.session_state.search_done:
+        tracks_raw = st.session_state.tracks_raw
+        tracks = st.session_state.tracks
+        artist = st.session_state.search_artist
 
         if tracks_raw.empty:
             st.error(f"No se han encontrado resultados para '{artist}'.")
@@ -367,8 +385,8 @@ if "Apartado 1" in SECTION:
 
             st.markdown("---")
             st.subheader("💿 Álbumes de estudio detectados")
+            st.caption("Pulsa una portada para ver sus canciones")
 
-            # Galería de portadas
             studio_albums_info = (
                 tracks.groupby("album")
                 .agg(pistas=("track", "count"), cover=("cover", "first"))
@@ -376,40 +394,86 @@ if "Apartado 1" in SECTION:
                 .sort_values("album")
             )
 
+            # Galería de portadas con botones
             n_cols = 4
-            cols = st.columns(n_cols)
-            for i, (_, row) in enumerate(studio_albums_info.iterrows()):
-                with cols[i % n_cols]:
-                    cover_url = row["cover"] if row["cover"] else ""
-                    img_html = (
-                        f'<img src="{cover_url}" alt="{row["album"]}">'
-                        if cover_url
-                        else '<div style="background:#333;height:180px;border-radius:6px"></div>'
-                    )
-                    st.markdown(
-                        f'''
-                        <div class="album-card">
-                            {img_html}
-                            <div class="album-title">{row["album"]}</div>
-                            <div class="album-meta">{row["pistas"]} pistas</div>
-                        </div>
-                        ''',
-                        unsafe_allow_html=True,
-                    )
+            for row_start in range(0, len(studio_albums_info), n_cols):
+                cols = st.columns(n_cols)
+                row_albums = studio_albums_info.iloc[row_start:row_start + n_cols]
+                for col, (_, alb) in zip(cols, row_albums.iterrows()):
+                    with col:
+                        cover_url = alb["cover"] if alb["cover"] else None
+                        # Imagen del álbum
+                        if cover_url:
+                            st.image(cover_url, use_container_width=True)
+                        # Botón debajo con el nombre y nº pistas
+                        is_selected = st.session_state.selected_album == alb["album"]
+                        button_label = (
+                            f"✓ {alb['album']}" if is_selected else f"{alb['album']}"
+                        )
+                        if st.button(
+                            f"{button_label}\n{alb['pistas']} pistas",
+                            key=f"album_btn_{alb['album']}",
+                            use_container_width=True,
+                            type="primary" if is_selected else "secondary",
+                        ):
+                            st.session_state.selected_album = alb["album"]
+                            st.session_state.selected_track = None
+                            st.rerun()
 
-            # Tablas comparativas
+            # Si hay un álbum seleccionado, mostrar canciones
+            if st.session_state.selected_album:
+                st.markdown("---")
+                st.subheader(f"🎵 Canciones de: {st.session_state.selected_album}")
+
+                album_tracks = tracks[tracks["album"] == st.session_state.selected_album].copy()
+
+                # Selector de canción
+                track_options = album_tracks["track"].tolist()
+                selected_track = st.selectbox(
+                    "Selecciona una canción para ver su letra",
+                    options=["— elige una canción —"] + track_options,
+                )
+
+                if selected_track and selected_track != "— elige una canción —":
+                    with st.spinner("Descargando letra..."):
+                        lyrics = get_lyrics(artist, selected_track)
+
+                    if lyrics:
+                        # Métricas de la letra
+                        n, u, lex = metrics(lyrics)
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Palabras totales", n)
+                        c2.metric("Palabras únicas", u)
+                        c3.metric("Riqueza léxica", f"{lex:.3f}")
+
+                        st.markdown("##### Letra")
+                        st.markdown(
+                            f'<div style="background-color:#1f1f1f;padding:20px;'
+                            f'border-radius:8px;white-space:pre-wrap;color:#f1f1f1;'
+                            f'max-height:500px;overflow-y:auto;font-size:14px;'
+                            f'line-height:1.6">{lyrics}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.warning(
+                            "No se ha podido recuperar la letra de esta canción "
+                            "en lyrics.ovh."
+                        )
+
+            # Tablas comparativas al final
             st.markdown("---")
-            t1, t2 = st.tabs(["Antes del filtro", "Después del filtro"])
-            with t1:
-                st.dataframe(
-                    tracks_raw["album"].value_counts().rename_axis("álbum").reset_index(name="pistas"),
-                    use_container_width=True, height=400,
-                )
-            with t2:
-                st.dataframe(
-                    tracks.groupby("album").size().reset_index(name="pistas").sort_values("álbum" if "álbum" in tracks.columns else "album"),
-                    use_container_width=True, height=400,
-                )
+            with st.expander("Ver tablas brutas (antes / después del filtro)"):
+                t1, t2 = st.tabs(["Antes del filtro", "Después del filtro"])
+                with t1:
+                    st.dataframe(
+                        tracks_raw["album"].value_counts().rename_axis("álbum").reset_index(name="pistas"),
+                        use_container_width=True, height=400,
+                    )
+                with t2:
+                    st.dataframe(
+                        tracks.groupby("album").size().reset_index(name="pistas"),
+                        use_container_width=True, height=400,
+                    )
 
 
 # ===========================================================================
